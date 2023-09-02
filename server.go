@@ -18,7 +18,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-
+	graph.Database()
 	port := os.Getenv("PORT")
 
 	srv := handler.NewDefaultServer(graph.NewExecutableSchema(graph.Config{Resolvers: &graph.Resolver{}}))
