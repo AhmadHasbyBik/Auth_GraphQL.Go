@@ -7,43 +7,60 @@ package graph
 import (
 	"context"
 	"graphql/graph/model"
+	"time"
 )
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.NewUserInput) (*model.User, error) {
-	user := &model.User{
-		Username: input.Username,
-		Email:    input.Email,
-		Password: input.Password,
+
+	now := int(time.Now().Unix())
+
+	u := &model.User{
+		Username:  input.Username,
+		Email:     input.Email,
+		Password:  input.Password,
+		CreatedAt: now,
+		UpdatedAt: 0,
 	}
 
-	return user, nil
+	result, err := DB.Exec("INSERT INTO `users` (username, email, password, created_at, updated_at) VALUES(?,?,?,?,?)", u.Username, u.Email, u.Password, u.CreatedAt, u.UpdatedAt)
+
+	if err != nil {
+		return nil, err
+	}
+
+	lastId, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	u.ID = int(lastId)
+
+	return u, nil
 }
 
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
-	var res []*model.User
+	var result []*model.User
+	rows, err := DB.Query("SELECT id, username, email, created_at, updated_at FROM `users`")
 
-	user1 := &model.User{
-		ID:        1,
-		Username:  "abik",
-		Email:     "abik@abik.com",
-		CreatedAt: 0,
-		UpdatedAt: 0,
+	if err != nil {
+		return nil, err
 	}
 
-	user2 := &model.User{
-		ID:        2,
-		Username:  "abik2",
-		Email:     "abik2@abik.com",
-		CreatedAt: 0,
-		UpdatedAt: 0,
+	defer rows.Close()
+
+	for rows.Next() {
+		var u model.User
+		err = rows.Scan(&u.ID, &u.Username, &u.Email, &u.CreatedAt, &u.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, &u)
 	}
 
-	res = append(res, user2)
-	res = append(res, user1)
-
-	return res, nil
+	return result, nil
 }
 
 // Mutation returns MutationResolver implementation.
@@ -54,10 +71,3 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//   - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//     it when you're done.
-//   - You have helper methods in this file. Move them out to keep these resolver files clean.

@@ -9,10 +9,13 @@ type NewUserInput struct {
 }
 
 type User struct {
-	ID        int64 `json:"id"`
+	ID        int    `json:"id"`
 	Username  string `json:"username"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	CreatedAt int    `json:"created_at"`
 	UpdatedAt int    `json:"updated_at"`
 }
+
+
+
