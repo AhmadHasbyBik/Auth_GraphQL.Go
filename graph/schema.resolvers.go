@@ -6,44 +6,69 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"graphql/graph/model"
+	"log"
 	"time"
 )
 
 // CreateUser is the resolver for the createUser field.
 func (r *mutationResolver) CreateUser(ctx context.Context, input model.NewUserInput) (*model.User, error) {
-
 	now := int(time.Now().Unix())
+
+	userHashPassword, err := HashPassword(input.Password)
+	if err != nil {
+		return nil, err
+	}
 
 	u := &model.User{
 		Username:  input.Username,
 		Email:     input.Email,
-		Password:  input.Password,
+		Password:  userHashPassword,
 		CreatedAt: now,
 		UpdatedAt: 0,
 	}
 
-	result, err := DB.Exec("INSERT INTO `users` (username, email, password, created_at, updated_at) VALUES(?,?,?,?,?)", u.Username, u.Email, u.Password, u.CreatedAt, u.UpdatedAt)
-
-	if err != nil {
-		return nil, err
+	createErr := u.Create()
+	if createErr != nil {
+		return nil, createErr
 	}
-
-	lastId, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	u.ID = int(lastId)
 
 	return u, nil
 }
 
+// Login is the resolver for the login field.
+func (r *mutationResolver) Login(ctx context.Context, email string, password string) (*model.Token, error) {
+	user, err := FindUserByEmail(email)
+
+	if err != nil || user == nil {
+		return nil, errors.New("User Not Found")
+	}
+
+	if !ComparePassword(password, user.Password) {
+		return nil, errors.New("Password Does'nt Correct")
+	}
+
+	expiredAt := int(time.Now().Add(time.Hour * 1).Unix())
+	obj := &model.Token{
+		Token:     JwtCreate(user.ID, int64(expiredAt)),
+		ExpiredAt: expiredAt,
+	}
+
+	return obj, nil
+}
+
 // Users is the resolver for the users field.
 func (r *queryResolver) Users(ctx context.Context) ([]*model.User, error) {
-	var result []*model.User
-	rows, err := DB.Query("SELECT id, username, email, created_at, updated_at FROM `users`")
+	userAuth := GetAuthFromContext(ctx)
+	log.Println("user", userAuth.UserID)
+	if userAuth.UserID == 0 {
+		return nil, errors.New("Access Denied")
+	}
 
+	var result []*model.User
+
+	rows, err := DB.Query("SELECT id, username, email, created_at, updated_at FROM `users`")
 	if err != nil {
 		return nil, err
 	}
