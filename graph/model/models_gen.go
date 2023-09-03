@@ -2,10 +2,17 @@
 
 package model
 
+import "database/sql"
+
 type NewUserInput struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type Token struct {
+	Token     string `json:"token"`
+	ExpiredAt int    `json:"expired_at"`
 }
 
 type User struct {
@@ -17,5 +24,20 @@ type User struct {
 	UpdatedAt int    `json:"updated_at"`
 }
 
+var DB *sql.DB
 
+func (u *User) Create() error {
+	result, err := DB.Exec("INSERT INTO `users` (username, email, password, created_at, updated_at) VALUES(?,?,?,?,?)", u.Username, u.Email, u.Password, u.CreatedAt, u.UpdatedAt)
+	if err != nil {
+		return err
+	}
 
+	lastId, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	u.ID = int(lastId)
+
+	return nil
+}
